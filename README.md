@@ -23,11 +23,24 @@ Requires **Node 18+** (for global `fetch` and `FormData`).
 
 ## Quick start
 
+### Public beta token
+
+During the public beta, anyone can use this shared bearer token:
+
+```
+kno_public_beta_4d7e9f1a3c5b2e8d6a9f7c1b3e5d8a2f
+```
+
+No signup — copy, paste, call the API. Need your own key / production limits? DM [@useknockout](https://x.com/useknockout) on X.
+
+### One-minute example
+
 ```ts
 import { writeFile } from "node:fs/promises";
 import { Knockout } from "@useknockout/node";
 
-const client = new Knockout({ token: process.env.KNOCKOUT_TOKEN! });
+// Public beta — for production use your own key
+const client = new Knockout({ token: "kno_public_beta_4d7e9f1a3c5b2e8d6a9f7c1b3e5d8a2f" });
 
 // 1. From a local file path
 const png = await client.remove({ file: "./input.jpg" });
