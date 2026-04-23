@@ -1,6 +1,6 @@
 {
   "name": "@useknockout/node",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Official Node.js client for useknockout — state-of-the-art background removal API.",
   "keywords": [
     "background-removal",
