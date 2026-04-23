@@ -14,9 +14,10 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.1";
+const SDK_VERSION = "0.0.3";
 
 export type OutputFormat = "png" | "webp";
+export type OpaqueFormat = "png" | "webp" | "jpg";
 
 export interface KnockoutOptions {
   /** API bearer token. Required unless your self-hosted instance has no auth. */
@@ -43,6 +44,51 @@ export interface RemoveUrlInput {
   url: string;
   /** Output format. Default "png". */
   format?: OutputFormat;
+}
+
+export interface ReplaceBgInput {
+  /** Local file path, Buffer, Blob, or ArrayBuffer of the foreground image. */
+  file: string | Buffer | Blob | ArrayBuffer | Uint8Array;
+  /** Optional filename — inferred from path when `file` is a string. */
+  filename?: string;
+  /** Hex color for the new background. Default "#FFFFFF". Ignored if `bgUrl` is set. */
+  bgColor?: string;
+  /** Remote URL of an image to use as the new background. Takes precedence over `bgColor`. */
+  bgUrl?: string;
+  /** Output format. "jpg" is smallest. Default "png". */
+  format?: OpaqueFormat;
+}
+
+export interface BatchInput {
+  /** Array of local paths / buffers / blobs. Up to 10. */
+  files: Array<string | Buffer | Blob | ArrayBuffer | Uint8Array>;
+  /** Optional filenames aligned to `files`. */
+  filenames?: string[];
+  /** Output format for each image. Default "png". */
+  format?: OutputFormat;
+}
+
+export interface BatchUrlInput {
+  /** Remote URLs to process. Up to 10. */
+  urls: string[];
+  /** Output format for each image. Default "png". */
+  format?: OutputFormat;
+}
+
+export interface BatchResultItem {
+  filename?: string;
+  url?: string;
+  success: boolean;
+  format?: OutputFormat;
+  size_bytes?: number;
+  data_base64?: string;
+  error?: string;
+}
+
+export interface BatchResponse {
+  count: number;
+  format: OutputFormat;
+  results: BatchResultItem[];
 }
 
 export interface HealthResponse {
@@ -147,6 +193,89 @@ export class Knockout {
     return Buffer.from(await res.arrayBuffer());
   }
 
+  /**
+   * Replace the background with a solid color or a remote image.
+   *
+   * @example Solid color
+   *   const jpg = await client.replaceBackground({ file: "./cat.jpg", bgColor: "#FF5733", format: "jpg" });
+   *
+   * @example Remote image as new background
+   *   const png = await client.replaceBackground({
+   *     file: "./cat.jpg",
+   *     bgUrl: "https://example.com/beach.jpg",
+   *   });
+   */
+  async replaceBackground(input: ReplaceBgInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+
+    const form = new FormData();
+    form.append("file", blob, filename);
+
+    const params = new URLSearchParams({ format });
+    if (input.bgUrl) params.set("bg_url", input.bgUrl);
+    if (input.bgColor) params.set("bg_color", input.bgColor);
+
+    const res = await this.request("POST", `/replace-bg?${params.toString()}`, {
+      body: form,
+    });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Remove the background from up to 10 images in a single call.
+   * Returns a JSON object with base64-encoded result bytes per image.
+   *
+   * @example
+   *   const batch = await client.removeBatch({
+   *     files: ["./a.jpg", "./b.jpg", "./c.jpg"],
+   *     format: "png",
+   *   });
+   *   for (const r of batch.results) {
+   *     if (r.success) await writeFile(r.filename!, Buffer.from(r.data_base64!, "base64"));
+   *   }
+   */
+  async removeBatch(input: BatchInput): Promise<BatchResponse> {
+    const format: OutputFormat = input.format ?? "png";
+    if (input.files.length === 0) throw new Error("At least one file required");
+    if (input.files.length > 10) throw new Error("Max 10 files per batch");
+
+    const form = new FormData();
+    for (let i = 0; i < input.files.length; i++) {
+      const name = input.filenames?.[i];
+      const { blob, filename } = await toBlob({ file: input.files[i]!, filename: name });
+      form.append("files", blob, filename);
+    }
+
+    const res = await this.request("POST", `/remove-batch?format=${format}`, {
+      body: form,
+    });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return (await res.json()) as BatchResponse;
+  }
+
+  /**
+   * Remove the background from up to 10 remote image URLs in a single call.
+   *
+   * @example
+   *   const batch = await client.removeBatchUrl({
+   *     urls: ["https://a.jpg", "https://b.jpg"],
+   *   });
+   */
+  async removeBatchUrl(input: BatchUrlInput): Promise<BatchResponse> {
+    const format: OutputFormat = input.format ?? "png";
+    if (input.urls.length === 0) throw new Error("At least one URL required");
+    if (input.urls.length > 10) throw new Error("Max 10 URLs per batch");
+
+    const res = await this.request("POST", "/remove-batch-url", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls: input.urls, format }),
+    });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return (await res.json()) as BatchResponse;
+  }
+
   private async request(
     method: "GET" | "POST",
     path: string,
@@ -175,7 +304,7 @@ export class Knockout {
 }
 
 async function toBlob(
-  input: RemoveInput
+  input: { file: string | Buffer | Blob | ArrayBuffer | Uint8Array; filename?: string }
 ): Promise<{ blob: Blob; filename: string }> {
   const { file } = input;
   const filename = input.filename ?? inferFilename(file);
@@ -202,7 +331,7 @@ async function toBlob(
   throw new TypeError("Unsupported `file` input. Provide a path, Buffer, Blob, ArrayBuffer, or Uint8Array.");
 }
 
-function inferFilename(file: RemoveInput["file"]): string {
+function inferFilename(file: string | Buffer | Blob | ArrayBuffer | Uint8Array): string {
   if (typeof file === "string") return basename(file) || "image";
   return "image";
 }
