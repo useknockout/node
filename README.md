@@ -39,19 +39,46 @@ No signup — copy, paste, call the API. Need your own key / production limits? 
 import { writeFile } from "node:fs/promises";
 import { Knockout } from "@useknockout/node";
 
-// Public beta — for production use your own key
 const client = new Knockout({ token: "kno_public_beta_4d7e9f1a3c5b2e8d6a9f7c1b3e5d8a2f" });
 
-// 1. From a local file path
+// Remove background — returns transparent PNG buffer
 const png = await client.remove({ file: "./input.jpg" });
-await writeFile("./output.png", png);
+await writeFile("out.png", png);
 
-// 2. From a Buffer (e.g. uploaded via multer)
+// Replace background with a hex color
+const jpg = await client.replaceBackground({
+  file: "./input.jpg",
+  bgColor: "#FF5733",
+  format: "jpg",
+});
+await writeFile("out.jpg", jpg);
+
+// Replace background with a remote image
+const composed = await client.replaceBackground({
+  file: "./input.jpg",
+  bgUrl: "https://example.com/beach.jpg",
+});
+
+// Batch — remove bg from up to 10 URLs in one call
+const batch = await client.removeBatchUrl({
+  urls: ["https://example.com/a.jpg", "https://example.com/b.jpg"],
+});
+for (const r of batch.results) {
+  if (r.success) {
+    await writeFile(`out.png`, Buffer.from(r.data_base64!, "base64"));
+  }
+}
+```
+
+### From a Buffer or remote URL
+
+```ts
+// From a Buffer (e.g. uploaded via multer)
 const buf = await fs.readFile("./input.jpg");
 const out = await client.remove({ file: buf, filename: "input.jpg" });
 
-// 3. From a remote URL
-const url = await client.removeUrl({ url: "https://example.com/cat.jpg" });
+// From a remote URL
+const png = await client.removeUrl({ url: "https://example.com/cat.jpg" });
 ```
 
 ## API
@@ -87,6 +114,43 @@ Remove the background from a remote image URL.
 | `format` | `"png" \| "webp"` | Output format. Default `"png"`. |
 
 Returns: `Buffer` of the processed image.
+
+### `client.replaceBackground(input)`
+
+Remove the background and composite the subject onto a new background — solid color or remote image.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `string \| Buffer \| Blob \| ArrayBuffer \| Uint8Array` | Foreground image (path or bytes). |
+| `filename` | `string?` | Optional filename. |
+| `bgColor` | `string?` | Hex color for the new background. Default `"#FFFFFF"`. Ignored if `bgUrl` is set. |
+| `bgUrl` | `string?` | Remote URL of a background image. Takes precedence over `bgColor`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Output format. Default `"png"`. `"jpg"` for smallest file. |
+
+Returns: `Buffer` of the composited image. Edges refined via closed-form foreground matting (no halos).
+
+### `client.removeBatch(input)`
+
+Remove backgrounds from up to 10 images in a single call.
+
+| Field | Type | Description |
+|---|---|---|
+| `files` | `Array<string \| Buffer \| Blob \| ArrayBuffer \| Uint8Array>` | 1–10 file paths or buffers. |
+| `filenames` | `string[]?` | Optional filename aligned to each file. |
+| `format` | `"png" \| "webp"` | Output format. Default `"png"`. |
+
+Returns: `BatchResponse` — `{ count, format, results: [{ filename, success, format, size_bytes, data_base64 | error }] }`. Decode `data_base64` with `Buffer.from(b64, "base64")`.
+
+### `client.removeBatchUrl(input)`
+
+Same as `removeBatch` but takes a JSON array of remote URLs.
+
+| Field | Type | Description |
+|---|---|---|
+| `urls` | `string[]` | 1–10 remote image URLs. |
+| `format` | `"png" \| "webp"` | Output format. Default `"png"`. |
+
+Returns: `BatchResponse` with `url` in place of `filename` in each result.
 
 ### `client.health()`
 
