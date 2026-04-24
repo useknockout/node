@@ -81,6 +81,31 @@ const out = await client.remove({ file: buf, filename: "input.jpg" });
 const png = await client.removeUrl({ url: "https://example.com/cat.jpg" });
 ```
 
+### New in 0.0.5 — presets
+
+```ts
+// Sticker — thick outline, transparent bg (iMessage / WhatsApp style)
+const sticker = await client.sticker({ file: "./photo.jpg", strokeWidth: 24 });
+
+// Outline — thin stroke around subject
+const outlined = await client.outline({ file: "./photo.jpg", outlineColor: "#000000", outlineWidth: 4 });
+
+// Smart crop — auto-crop to subject bbox + padding
+const cropped = await client.smartCrop({ file: "./photo.jpg", padding: 32 });
+
+// Shadow — drop shadow on a new background
+const withShadow = await client.shadow({ file: "./photo.jpg", bgColor: "#F3F4F6" });
+
+// Studio shot — e-commerce preset (centered subject, white bg, shadow, square)
+const studio = await client.studioShot({ file: "./photo.jpg", aspect: "1:1" });
+
+// Compare — before/after side-by-side image
+const preview = await client.compare({ file: "./photo.jpg" });
+
+// Mask — just the black/white mask for your own pipeline
+const mask = await client.mask({ file: "./photo.jpg" });
+```
+
 ## API
 
 ### `new Knockout(options?)`
@@ -151,6 +176,88 @@ Same as `removeBatch` but takes a JSON array of remote URLs.
 | `format` | `"png" \| "webp"` | Output format. Default `"png"`. |
 
 Returns: `BatchResponse` with `url` in place of `filename` in each result.
+
+### `client.mask(input)`
+
+Return just the black/white alpha mask as a grayscale PNG/WebP.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `format` | `"png" \| "webp"` | Default `"png"`. |
+
+Returns: `Buffer` of a grayscale image (0 = bg, 255 = subject).
+
+### `client.smartCrop(input)`
+
+Auto-crop to the subject's tight bounding box + padding.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `padding` | `number` | Padding in pixels. Default `24`. |
+| `transparent` | `boolean` | `true` → transparent cutout. `false` → cropped from original. Default `true`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"` (or `"jpg"` when `transparent=false`). |
+
+### `client.shadow(input)`
+
+Composite subject onto a new background with a configurable drop shadow.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `bgColor` | `string` | Hex color. Default `"#FFFFFF"`. |
+| `bgUrl` | `string` | Remote URL. Takes precedence over `bgColor`. |
+| `shadowColor` | `string` | Default `"#000000"`. |
+| `shadowOffsetX` | `number` | Default `8`. |
+| `shadowOffsetY` | `number` | Default `12`. |
+| `shadowBlur` | `number` | Default `14`. |
+| `shadowOpacity` | `number` | 0.0–1.0. Default `0.45`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.sticker(input)`
+
+Subject with a thick outline on transparent background — sticker style.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `strokeColor` | `string` | Default `"#FFFFFF"`. |
+| `strokeWidth` | `number` | Pixels. Default `20`, capped at `80`. |
+| `format` | `"png" \| "webp"` | Default `"png"`. |
+
+### `client.outline(input)`
+
+Subject with a thin outline on transparent background.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `outlineColor` | `string` | Default `"#000000"`. |
+| `outlineWidth` | `number` | Pixels. Default `4`, capped at `60`. |
+| `format` | `"png" \| "webp"` | Default `"png"`. |
+
+### `client.studioShot(input)`
+
+E-commerce preset: cutout + centered on canvas + optional drop shadow + standardized aspect ratio.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `bgColor` | `string` | Canvas color. Default `"#FFFFFF"`. |
+| `aspect` | `string` | `"W:H"` format, e.g. `"1:1"`, `"4:5"`, `"16:9"`. Default `"1:1"`. |
+| `padding` | `number` | Padding in pixels. Default `48`. |
+| `shadow` | `boolean` | Include drop shadow. Default `true`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"jpg"`. |
+
+### `client.compare(input)`
+
+Before/after side-by-side preview — original on the left, transparent cutout (on a checkerboard) on the right.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image to process. |
+| `format` | `"png" \| "webp"` | Default `"png"`. |
 
 ### `client.health()`
 
