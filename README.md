@@ -1,6 +1,30 @@
-# @useknockout/node
+<div align="center">
 
-> Official TypeScript / Node.js client for [useknockout](https://github.com/useknockout/api) — state-of-the-art background removal API.
+  # 🥊 @useknockout/node
+
+  **Official TypeScript / Node.js client for [useknockout](https://github.com/useknockout/api) — state-of-the-art background removal API.**
+
+  [![MIT License](https://img.shields.io/badge/license-MIT-3da639)](./LICENSE)
+  [![npm version](https://img.shields.io/npm/v/@useknockout/node?color=cb3837)](https://www.npmjs.com/package/@useknockout/node)
+  [![npm downloads](https://img.shields.io/npm/dm/@useknockout/node?color=cb3837)](https://www.npmjs.com/package/@useknockout/node)
+  [![GitHub stars](https://img.shields.io/github/stars/useknockout/node?style=social)](https://github.com/useknockout/node)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+  [![Node](https://img.shields.io/badge/node-%E2%89%A518-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+  [![Zero deps](https://img.shields.io/badge/runtime%20deps-0-success)](./package.json)
+
+  [**Install**](#install) · [**Quick Start**](#quick-start) · [**API**](#api) · [**Framework examples**](#framework-examples) · [**API repo**](https://github.com/useknockout/api)
+
+  <br/>
+
+  <img src="https://raw.githubusercontent.com/useknockout/api/main/docs/hero.png" alt="useknockout before/after — background removal demo" width="800"/>
+
+  <br/>
+
+  *One method call. Transparent PNG out. ~200ms per image.*
+
+</div>
+
+---
 
 - **Zero runtime dependencies** — uses the native `fetch` built into Node 18+
 - **First-class TypeScript** — full types, no `any`s in the public API
