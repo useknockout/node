@@ -14,10 +14,12 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.3";
+const SDK_VERSION = "0.0.4";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
+
+type FileInput = string | Buffer | Blob | ArrayBuffer | Uint8Array;
 
 export interface KnockoutOptions {
   /** API bearer token. Required unless your self-hosted instance has no auth. */
@@ -89,6 +91,72 @@ export interface BatchResponse {
   count: number;
   format: OutputFormat;
   results: BatchResultItem[];
+}
+
+export interface MaskInput {
+  file: FileInput;
+  filename?: string;
+  format?: OutputFormat;
+}
+
+export interface SmartCropInput {
+  file: FileInput;
+  filename?: string;
+  /** Padding around the subject bbox, in pixels. Default 24. */
+  padding?: number;
+  /** Return transparent cutout (true) or cropped region from original (false). Default true. */
+  transparent?: boolean;
+  format?: OpaqueFormat;
+}
+
+export interface ShadowInput {
+  file: FileInput;
+  filename?: string;
+  bgColor?: string;
+  bgUrl?: string;
+  shadowColor?: string;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowBlur?: number;
+  shadowOpacity?: number;
+  format?: OpaqueFormat;
+}
+
+export interface StickerInput {
+  file: FileInput;
+  filename?: string;
+  /** Hex color for the outline. Default "#FFFFFF". */
+  strokeColor?: string;
+  /** Outline width in pixels. Default 20. */
+  strokeWidth?: number;
+  format?: OutputFormat;
+}
+
+export interface OutlineInput {
+  file: FileInput;
+  filename?: string;
+  /** Hex color for the outline. Default "#000000". */
+  outlineColor?: string;
+  /** Outline width in pixels. Default 4. */
+  outlineWidth?: number;
+  format?: OutputFormat;
+}
+
+export interface StudioShotInput {
+  file: FileInput;
+  filename?: string;
+  bgColor?: string;
+  /** e.g. "1:1", "4:5", "16:9". Default "1:1". */
+  aspect?: string;
+  padding?: number;
+  shadow?: boolean;
+  format?: OpaqueFormat;
+}
+
+export interface CompareInput {
+  file: FileInput;
+  filename?: string;
+  format?: OutputFormat;
 }
 
 export interface HealthResponse {
@@ -253,6 +321,126 @@ export class Knockout {
     });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return (await res.json()) as BatchResponse;
+  }
+
+  /**
+   * Return only the alpha mask as a grayscale PNG/WebP.
+   * Useful when chaining into your own compositing pipeline.
+   */
+  async mask(input: MaskInput): Promise<Buffer> {
+    const format: OutputFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("format", format);
+    const res = await this.request("POST", "/mask", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Auto-crop to the subject's tight bounding box with configurable padding.
+   * Returns either a transparent cutout or a cropped region from the original image.
+   */
+  async smartCrop(input: SmartCropInput): Promise<Buffer> {
+    const transparent = input.transparent ?? true;
+    const format: OpaqueFormat =
+      (input.format as OpaqueFormat | undefined) ?? (transparent ? "png" : "jpg");
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("padding", String(input.padding ?? 24));
+    form.append("transparent", transparent ? "true" : "false");
+    form.append("format", format);
+    const res = await this.request("POST", "/smart-crop", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Composite subject onto a new background with a configurable drop shadow.
+   */
+  async shadow(input: ShadowInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.bgColor) form.append("bg_color", input.bgColor);
+    if (input.bgUrl) form.append("bg_url", input.bgUrl);
+    if (input.shadowColor) form.append("shadow_color", input.shadowColor);
+    if (input.shadowOffsetX !== undefined) form.append("shadow_offset_x", String(input.shadowOffsetX));
+    if (input.shadowOffsetY !== undefined) form.append("shadow_offset_y", String(input.shadowOffsetY));
+    if (input.shadowBlur !== undefined) form.append("shadow_blur", String(input.shadowBlur));
+    if (input.shadowOpacity !== undefined) form.append("shadow_opacity", String(input.shadowOpacity));
+    form.append("format", format);
+    const res = await this.request("POST", "/shadow", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Sticker style — subject with a thick outline on transparent background.
+   * Perfect for WhatsApp / iMessage / Telegram stickers.
+   */
+  async sticker(input: StickerInput): Promise<Buffer> {
+    const format: OutputFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.strokeColor) form.append("stroke_color", input.strokeColor);
+    if (input.strokeWidth !== undefined) form.append("stroke_width", String(input.strokeWidth));
+    form.append("format", format);
+    const res = await this.request("POST", "/sticker", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Subject on transparent background with a thin configurable outline.
+   */
+  async outline(input: OutlineInput): Promise<Buffer> {
+    const format: OutputFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.outlineColor) form.append("outline_color", input.outlineColor);
+    if (input.outlineWidth !== undefined) form.append("outline_width", String(input.outlineWidth));
+    form.append("format", format);
+    const res = await this.request("POST", "/outline", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * E-commerce preset — cutout + tight crop + centered + optional shadow on a standard aspect canvas.
+   */
+  async studioShot(input: StudioShotInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "jpg";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.bgColor) form.append("bg_color", input.bgColor);
+    if (input.aspect) form.append("aspect", input.aspect);
+    if (input.padding !== undefined) form.append("padding", String(input.padding));
+    if (input.shadow !== undefined) form.append("shadow", input.shadow ? "true" : "false");
+    form.append("format", format);
+    const res = await this.request("POST", "/studio-shot", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Before/after side-by-side preview — original on left, transparent cutout (on a checkerboard) on right.
+   */
+  async compare(input: CompareInput): Promise<Buffer> {
+    const format: OutputFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("format", format);
+    const res = await this.request("POST", "/compare", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
   }
 
   /**
