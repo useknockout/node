@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.5";
+const SDK_VERSION = "0.0.6";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
