@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.6";
+const SDK_VERSION = "0.0.7";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -159,6 +159,62 @@ export interface CompareInput {
   format?: OutputFormat;
 }
 
+export interface HeadshotInput {
+  file: FileInput;
+  filename?: string;
+  /** Hex color for the background. Default "#FFFFFF". Ignored if `bgBlur` is true. */
+  bgColor?: string;
+  /** Use a blurred copy of the original image as the background. Default false. */
+  bgBlur?: boolean;
+  /** Gaussian blur radius for the background when `bgBlur` is true. Default 20. */
+  blurRadius?: number;
+  /** Output aspect "W:H". Default "4:5" (portrait). */
+  aspect?: string;
+  /** Padding around the subject bbox, in pixels. Default 64. */
+  padding?: number;
+  /** Vertical headroom as a ratio of canvas height (0–0.5). Default 0.18. */
+  headTopRatio?: number;
+  format?: OpaqueFormat;
+}
+
+export interface PreviewInput {
+  file: FileInput;
+  filename?: string;
+  /** Long-edge cap in pixels (64–1024). Default 512. */
+  maxDim?: number;
+  format?: OutputFormat;
+}
+
+export interface EstimateInput {
+  /** Endpoint name without leading slash, e.g. "remove" or "headshot". */
+  endpoint: string;
+  width: number;
+  height: number;
+}
+
+export interface EstimateResponse {
+  endpoint: string;
+  image_pixels: number;
+  est_latency_ms_warm: number;
+  est_latency_ms_cold: number;
+  est_cost_usd: number;
+  free_during_beta: boolean;
+  note: string;
+}
+
+export interface StatsDay {
+  date: string;
+  count: number;
+}
+
+export interface StatsResponse {
+  total_processed: number;
+  today: number;
+  last_7_days: StatsDay[];
+  error?: string;
+  detail?: string;
+}
+
 export interface HealthResponse {
   status: string;
   model: string;
@@ -222,6 +278,36 @@ export class Knockout {
     const body = await res.text();
     if (!res.ok) throw new KnockoutError(res.status, body);
     return JSON.parse(body) as HealthResponse;
+  }
+
+  /**
+   * Public usage counter — total images processed all-time, today, and a 7-day breakdown.
+   * Use for landing-page social proof. Eventually consistent across containers.
+   */
+  async stats(): Promise<StatsResponse> {
+    const res = await this.request("GET", "/stats");
+    const body = await res.text();
+    if (!res.ok) throw new KnockoutError(res.status, body);
+    return JSON.parse(body) as StatsResponse;
+  }
+
+  /**
+   * Predict latency + cost for an endpoint and image size without doing any GPU work.
+   *
+   * @example
+   *   const est = await client.estimate({ endpoint: "remove", width: 1024, height: 1024 });
+   */
+  async estimate(input: EstimateInput): Promise<EstimateResponse> {
+    const res = await this.request("POST", "/estimate", {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        endpoint: input.endpoint,
+        width: input.width,
+        height: input.height,
+      }),
+    });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return (await res.json()) as EstimateResponse;
   }
 
   /**
@@ -439,6 +525,48 @@ export class Knockout {
     form.append("file", blob, filename);
     form.append("format", format);
     const res = await this.request("POST", "/compare", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * LinkedIn-ready headshot preset — bg removal + portrait crop + center face + bg color or blur.
+   *
+   * @example Solid bg
+   *   const jpg = await client.headshot({ file: "./photo.jpg", bgColor: "#0A0A0A" });
+   *
+   * @example Blurred original as bg
+   *   const jpg = await client.headshot({ file: "./photo.jpg", bgBlur: true, blurRadius: 24 });
+   */
+  async headshot(input: HeadshotInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "jpg";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.bgColor) form.append("bg_color", input.bgColor);
+    if (input.bgBlur !== undefined) form.append("bg_blur", input.bgBlur ? "true" : "false");
+    if (input.blurRadius !== undefined) form.append("blur_radius", String(input.blurRadius));
+    if (input.aspect) form.append("aspect", input.aspect);
+    if (input.padding !== undefined) form.append("padding", String(input.padding));
+    if (input.headTopRatio !== undefined) form.append("head_top_ratio", String(input.headTopRatio));
+    form.append("format", format);
+    const res = await this.request("POST", "/headshot", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Fast low-res preview cutout (~80ms warm). Skips pymatting refinement and downscales
+   * input to `maxDim` (default 512px on the long edge). Use for UX progress indicators.
+   */
+  async preview(input: PreviewInput): Promise<Buffer> {
+    const format: OutputFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("max_dim", String(input.maxDim ?? 512));
+    form.append("format", format);
+    const res = await this.request("POST", "/preview", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
