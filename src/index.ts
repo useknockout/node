@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.7";
+const SDK_VERSION = "0.0.8";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -183,6 +183,24 @@ export interface PreviewInput {
   /** Long-edge cap in pixels (64–1024). Default 512. */
   maxDim?: number;
   format?: OutputFormat;
+}
+
+export interface UpscaleInput {
+  file: FileInput;
+  filename?: string;
+  /** Upscale factor: 2 or 4. Default 4. */
+  scale?: 2 | 4;
+  /** Route through GFPGAN to fix facial detail. Slower, use for portraits. */
+  faceEnhance?: boolean;
+  format?: OpaqueFormat;
+}
+
+export interface FaceRestoreInput {
+  file: FileInput;
+  filename?: string;
+  /** Restore only the most prominent face (faster). Default false (all faces). */
+  onlyCenterFace?: boolean;
+  format?: OpaqueFormat;
 }
 
 export interface EstimateInput {
@@ -567,6 +585,47 @@ export class Knockout {
     form.append("max_dim", String(input.maxDim ?? 512));
     form.append("format", format);
     const res = await this.request("POST", "/preview", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Real-ESRGAN x2 / x4 super-resolution. Set `faceEnhance: true` to route portraits
+   * through GFPGAN for sharper facial detail (slower).
+   *
+   * @example Cutout → 4x upscale (print-ready)
+   *   const png = await client.remove({ file: "./photo.jpg" });
+   *   const big = await client.upscale({ file: png, scale: 4 });
+   */
+  async upscale(input: UpscaleInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("scale", String(input.scale ?? 4));
+    if (input.faceEnhance !== undefined) {
+      form.append("face_enhance", input.faceEnhance ? "true" : "false");
+    }
+    form.append("format", format);
+    const res = await this.request("POST", "/upscale", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * GFPGAN v1.4 portrait restoration — fix blurry / damaged / low-res faces.
+   * Background is upscaled 2x by Real-ESRGAN. Pairs with /headshot.
+   */
+  async faceRestore(input: FaceRestoreInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.onlyCenterFace !== undefined) {
+      form.append("only_center_face", input.onlyCenterFace ? "true" : "false");
+    }
+    form.append("format", format);
+    const res = await this.request("POST", "/face-restore", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
