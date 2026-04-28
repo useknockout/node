@@ -283,6 +283,73 @@ Before/after side-by-side preview — original on the left, transparent cutout (
 | `file` | `FileInput` | Image to process. |
 | `format` | `"png" \| "webp"` | Default `"png"`. |
 
+### `client.headshot(input)` — v0.4.0
+
+Studio-quality professional headshot — background removed, neutral studio backdrop, optional soft drop shadow, smart crop to bust framing.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Source portrait. |
+| `bgColor` | `string` | Studio backdrop hex. Default `"#f5f5f5"`. |
+| `addShadow` | `boolean` | Soft drop shadow. Default `true`. |
+| `crop` | `"bust" \| "head" \| "full"` | Default `"bust"`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.preview(input)` — v0.4.0
+
+Cheap, fast low-res preview — 512px max, ~1.5s. Use for thumbnail UI before user pays for full-res.
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Source image. |
+| `maxSize` | `number` | Max edge length. Default `512`. |
+| `watermark` | `boolean` | Add `useknockout` watermark. Default `false`. |
+
+### `client.estimate(input)` — v0.4.0
+
+Returns expected processing time + output size **without running the model**. Show users "this'll take ~3s, ~1.2 MB" before they hit submit.
+
+```ts
+const est = await client.estimate({ width: 2048, height: 1536, endpoint: "remove" });
+// { estimated_seconds: 2.4, estimated_output_kb: 1180, warm: true }
+```
+
+### `client.stats()` — v0.4.0
+
+Public stats — total images processed, last-24h count, last-7d trend. Powered by Modal Dict cross-container counter. No auth required.
+
+```ts
+const stats = await client.stats();
+// { total: 12340, last_24h: 312, last_7d: [...] }
+```
+
+### `client.upscale(input)` — v0.5.0
+
+**Real-ESRGAN x2/x4 super-resolution.** Outputs 2x or 4x larger image with AI-restored detail. Tile-based — handles big inputs without OOM.
+
+```ts
+const big = await client.upscale({ file: "./small.jpg", scale: 4 });
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Source image. |
+| `scale` | `2 \| 4` | Default `4`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.faceRestore(input)` — v0.5.0
+
+**GFPGAN v1.4 face restoration.** Detects faces, restores blurred/compressed/damaged ones while preserving identity. Background also upscaled. Multi-face safe.
+
+```ts
+const restored = await client.faceRestore({ file: "./blurry-portrait.jpg" });
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Image with one or more faces. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
 ### `client.health()`
 
 Returns: `Promise<{ status: string; model: string }>`. No auth required.
