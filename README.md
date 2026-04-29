@@ -323,18 +323,20 @@ const stats = await client.stats();
 // { total: 12340, last_24h: 312, last_7d: [...] }
 ```
 
-### `client.upscale(input)` — v0.5.0
+### `client.upscale(input)` — v0.6.0
 
-**Real-ESRGAN x2/x4 super-resolution.** Outputs 2x or 4x larger image with AI-restored detail. Tile-based — handles big inputs without OOM.
+**Swin2SR / Real-ESRGAN x2/x4 super-resolution.** Defaults to **Swin2SR** (SwinV2 Transformer) — sharper detail and natural texture on real photos. Pass `model: "realesrgan"` for the legacy backend (better on anime / illustrations).
 
 ```ts
 const big = await client.upscale({ file: "./small.jpg", scale: 4 });
+const anime = await client.upscale({ file: "./art.png", scale: 4, model: "realesrgan" });
 ```
 
 | Field | Type | Description |
 |---|---|---|
 | `file` | `FileInput` | Source image. |
 | `scale` | `2 \| 4` | Default `4`. |
+| `model` | `"swin2sr" \| "realesrgan"` | Default `"swin2sr"`. |
 | `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
 
 ### `client.faceRestore(input)` — v0.5.0

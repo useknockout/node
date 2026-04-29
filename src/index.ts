@@ -190,7 +190,12 @@ export interface UpscaleInput {
   filename?: string;
   /** Upscale factor: 2 or 4. Default 4. */
   scale?: 2 | 4;
-  /** Route through GFPGAN to fix facial detail. Slower, use for portraits. */
+  /**
+   * Backend. `swin2sr` (default, v0.6.0+) is sharper on real photos.
+   * `realesrgan` is the legacy backend — better on anime/illustrations.
+   */
+  model?: "swin2sr" | "realesrgan";
+  /** Route through GFPGAN to fix facial detail. Slower, use for portraits. Implies realesrgan. */
   faceEnhance?: boolean;
   format?: OpaqueFormat;
 }
@@ -590,8 +595,10 @@ export class Knockout {
   }
 
   /**
-   * Real-ESRGAN x2 / x4 super-resolution. Set `faceEnhance: true` to route portraits
-   * through GFPGAN for sharper facial detail (slower).
+   * 2x / 4x super-resolution. Defaults to Swin2SR (SwinV2 transformer) for sharper
+   * detail on real photos. Pass `model: "realesrgan"` for the legacy backend
+   * (better on anime / illustrations). `faceEnhance: true` routes portraits
+   * through GFPGAN.
    *
    * @example Cutout → 4x upscale (print-ready)
    *   const png = await client.remove({ file: "./photo.jpg" });
@@ -603,6 +610,7 @@ export class Knockout {
     const form = new FormData();
     form.append("file", blob, filename);
     form.append("scale", String(input.scale ?? 4));
+    form.append("model", input.model ?? "swin2sr");
     if (input.faceEnhance !== undefined) {
       form.append("face_enhance", input.faceEnhance ? "true" : "false");
     }
