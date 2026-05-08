@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.0.8";
+const SDK_VERSION = "0.1.0";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -205,6 +205,12 @@ export interface FaceRestoreInput {
   filename?: string;
   /** Restore only the most prominent face (faster). Default false (all faces). */
   onlyCenterFace?: boolean;
+  format?: OpaqueFormat;
+}
+
+export interface ColorizeInput {
+  file: FileInput;
+  filename?: string;
   format?: OpaqueFormat;
 }
 
@@ -634,6 +640,28 @@ export class Knockout {
     }
     form.append("format", format);
     const res = await this.request("POST", "/face-restore", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Colorize a black-and-white or grayscale photo (DDColor v0.7.0+).
+   *
+   * Apache-2.0 model, single feed-forward (no diffusion), ~500ms warm on L4.
+   * Works on any input — color photos are converted to grayscale internally
+   * before color is predicted, which makes round-trip recoloring easy too.
+   *
+   * @example
+   *   const buf = await client.colorize({ file: "./old-photo.jpg" });
+   *   await writeFile("colorized.png", buf);
+   */
+  async colorize(input: ColorizeInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    form.append("format", format);
+    const res = await this.request("POST", "/colorize", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
