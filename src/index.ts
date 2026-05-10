@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.1.0";
+const SDK_VERSION = "0.1.1";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -211,6 +211,16 @@ export interface FaceRestoreInput {
 export interface ColorizeInput {
   file: FileInput;
   filename?: string;
+  format?: OpaqueFormat;
+}
+
+export interface SilhouetteInput {
+  file: FileInput;
+  filename?: string;
+  /** Hex color for the subject silhouette. Default "#7C3AED" (purple). */
+  subjectColor?: string;
+  /** Hex color for the background. Default "#FFFFFF" (white). */
+  bgColor?: string;
   format?: OpaqueFormat;
 }
 
@@ -662,6 +672,31 @@ export class Knockout {
     form.append("file", blob, filename);
     form.append("format", format);
     const res = await this.request("POST", "/colorize", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Two-tone silhouette portrait — subject in one solid color, bg in another.
+   * Apple Music / Spotify avatar aesthetic. Reuses BiRefNet mask path; no new
+   * model load, fast.
+   *
+   * @example
+   *   const png = await client.silhouette({
+   *     file: "./portrait.jpg",
+   *     subjectColor: "#1E2960",
+   *     bgColor: "#F0857C",
+   *   });
+   */
+  async silhouette(input: SilhouetteInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.subjectColor) form.append("subject_color", input.subjectColor);
+    if (input.bgColor) form.append("bg_color", input.bgColor);
+    form.append("format", format);
+    const res = await this.request("POST", "/silhouette", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
