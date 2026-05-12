@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.1.1";
+const SDK_VERSION = "0.2.0";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -221,6 +221,30 @@ export interface SilhouetteInput {
   subjectColor?: string;
   /** Hex color for the background. Default "#FFFFFF" (white). */
   bgColor?: string;
+  format?: OpaqueFormat;
+}
+
+export interface InpaintBbox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface InpaintInput {
+  file: FileInput;
+  filename?: string;
+  /**
+   * Optional mask. White pixels = inpaint, black = keep. If omitted (and no
+   * `bbox`), auto-subject mode runs BiRefNet on the input and inverts the
+   * subject mask.
+   */
+  mask?: FileInput;
+  maskFilename?: string;
+  /** Rectangular region to inpaint. Mutually exclusive with `mask`. */
+  bbox?: InpaintBbox;
+  /** Mask dilation in pixels. Default 8, range 0..32. */
+  dilation?: number;
   format?: OpaqueFormat;
 }
 
@@ -672,6 +696,50 @@ export class Knockout {
     form.append("file", blob, filename);
     form.append("format", format);
     const res = await this.request("POST", "/colorize", { body: form });
+    if (!res.ok) throw new KnockoutError(res.status, await res.text());
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  /**
+   * Inpaint a region of an image using LaMa (Apache-2.0). Three modes,
+   * auto-detected from what you pass:
+   *
+   * 1. **auto-subject** — pass only `file`. BiRefNet derives the subject
+   *    mask, inverts it, and LaMa fills the subject region with plausible
+   *    background. Drop in a photo, get the subject erased.
+   * 2. **mask** — pass `file` + `mask` (any image, white = inpaint).
+   * 3. **bbox** — pass `file` + `bbox: { x, y, w, h }`. Rectangular region.
+   *
+   * `dilation` (0..32, default 8) expands the mask before LaMa runs to
+   * reduce ghost outlines from tight masks.
+   *
+   * @example Auto-erase subject
+   *   const png = await client.inpaint({ file: "./photo.jpg" });
+   *
+   * @example Erase a rectangular region
+   *   const png = await client.inpaint({ file: "./photo.jpg", bbox: { x: 100, y: 100, w: 300, h: 400 } });
+   */
+  async inpaint(input: InpaintInput): Promise<Buffer> {
+    const format: OpaqueFormat = input.format ?? "png";
+    const { blob, filename } = await toBlob({ file: input.file, filename: input.filename });
+    const form = new FormData();
+    form.append("file", blob, filename);
+    if (input.mask !== undefined) {
+      const { blob: maskBlob, filename: maskFilename } = await toBlob({
+        file: input.mask,
+        filename: input.maskFilename ?? "mask.png",
+      });
+      form.append("mask", maskBlob, maskFilename);
+    }
+    if (input.bbox) {
+      form.append("x", String(input.bbox.x));
+      form.append("y", String(input.bbox.y));
+      form.append("w", String(input.bbox.w));
+      form.append("h", String(input.bbox.h));
+    }
+    if (input.dilation !== undefined) form.append("dilation", String(input.dilation));
+    form.append("format", format);
+    const res = await this.request("POST", "/inpaint", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
