@@ -1,6 +1,7 @@
 <div align="center">
 
   # 🥊 @useknockout/node
+  [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-md-dark.svg)](https://huggingface.co/spaces/tlorents/useknockout-demo)
 
   **Official TypeScript / Node.js client for [useknockout](https://github.com/useknockout/api) — state-of-the-art background removal API.**
 
