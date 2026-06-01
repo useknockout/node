@@ -273,7 +273,13 @@ E-commerce preset: cutout + centered on canvas + optional drop shadow + standard
 | `aspect` | `string` | `"W:H"` format, e.g. `"1:1"`, `"4:5"`, `"16:9"`. Default `"1:1"`. |
 | `padding` | `number` | Padding in pixels. Default `48`. |
 | `shadow` | `boolean` | Include drop shadow. Default `true`. |
+| `transparent` | `boolean` | Keep a transparent background. Ignores `bgColor` and `shadow`; output is PNG (jpg is coerced). Default `false`. |
 | `format` | `"png" \| "webp" \| "jpg"` | Default `"jpg"`. |
+
+```ts
+// Transparent product cutout, centered & squared
+const cutout = await client.studioShot({ file: "./product.jpg", transparent: true });
+```
 
 ### `client.compare(input)`
 
@@ -351,6 +357,56 @@ const restored = await client.faceRestore({ file: "./blurry-portrait.jpg" });
 | Field | Type | Description |
 |---|---|---|
 | `file` | `FileInput` | Image with one or more faces. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.colorize(input)` — v0.7.0
+
+**DDColor colorization.** Turns black-and-white or faded photos into natural color. Single call, no params required.
+
+```ts
+const colored = await client.colorize({ file: "./old-photo.jpg" });
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Grayscale or faded source image. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.silhouette(input)` — v0.7.1
+
+**Two-tone silhouette portrait.** Runs BiRefNet, then flattens subject and background into two solid colors. Defaults to a purple subject on white.
+
+```ts
+const sil = await client.silhouette({ file: "./portrait.jpg" });
+const custom = await client.silhouette({ file: "./portrait.jpg", subjectColor: "#000000", bgColor: "#F5F5F5" });
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Source image. |
+| `subjectColor` | `string` | Hex color for the subject. Default `"#7C3AED"`. |
+| `bgColor` | `string` | Hex color for the background. Default `"#FFFFFF"`. |
+| `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
+
+### `client.inpaint(input)` — v0.8.0
+
+**LaMa large-mask inpainting (Apache-2.0).** Removes objects or fills regions. Three modes: **auto-subject** (no `mask`/`bbox` — runs BiRefNet and inverts the subject), **mask** (white pixels = inpaint), or **bbox** (rectangular region).
+
+```ts
+// auto-subject: erase the main subject
+const clean = await client.inpaint({ file: "./photo.jpg" });
+// mask mode
+const masked = await client.inpaint({ file: "./photo.jpg", mask: "./mask.png" });
+// bbox mode
+const region = await client.inpaint({ file: "./photo.jpg", bbox: { x: 100, y: 100, w: 300, h: 400 } });
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `file` | `FileInput` | Source image. |
+| `mask` | `FileInput` | Optional. White pixels = inpaint, black = keep. Mutually exclusive with `bbox`. |
+| `bbox` | `{ x, y, w, h }` | Optional rectangular region to inpaint. Mutually exclusive with `mask`. |
+| `dilation` | `number` | Mask dilation in pixels. Default `8`, range `0..32`. |
 | `format` | `"png" \| "webp" \| "jpg"` | Default `"png"`. |
 
 ### `client.health()`
