@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 export const DEFAULT_BASE_URL = "https://useknockout--api.modal.run";
-const SDK_VERSION = "0.3.0";
+const SDK_VERSION = "0.4.0";
 
 export type OutputFormat = "png" | "webp";
 export type OpaqueFormat = "png" | "webp" | "jpg";
@@ -207,6 +207,8 @@ export interface FaceRestoreInput {
   filename?: string;
   /** Restore only the most prominent face (faster). Default false (all faces). */
   onlyCenterFace?: boolean;
+  /** Also upscale the background 2x via Real-ESRGAN. Default false (bg preserved as-is). */
+  bgEnhance?: boolean;
   format?: OpaqueFormat;
 }
 
@@ -430,14 +432,14 @@ export class Knockout {
 
     const form = new FormData();
     form.append("file", blob, filename);
+    // /replace-bg reads these as form fields (Form(...)), NOT query params.
+    // Sending them in the query string makes the API silently use defaults
+    // (white bg, png) regardless of what the caller passed.
+    if (input.bgColor) form.append("bg_color", input.bgColor);
+    if (input.bgUrl) form.append("bg_url", input.bgUrl);
+    form.append("format", format);
 
-    const params = new URLSearchParams({ format });
-    if (input.bgUrl) params.set("bg_url", input.bgUrl);
-    if (input.bgColor) params.set("bg_color", input.bgColor);
-
-    const res = await this.request("POST", `/replace-bg?${params.toString()}`, {
-      body: form,
-    });
+    const res = await this.request("POST", "/replace-bg", { body: form });
     if (!res.ok) throw new KnockoutError(res.status, await res.text());
     return Buffer.from(await res.arrayBuffer());
   }
@@ -674,6 +676,9 @@ export class Knockout {
     form.append("file", blob, filename);
     if (input.onlyCenterFace !== undefined) {
       form.append("only_center_face", input.onlyCenterFace ? "true" : "false");
+    }
+    if (input.bgEnhance !== undefined) {
+      form.append("bg_enhance", input.bgEnhance ? "true" : "false");
     }
     form.append("format", format);
     const res = await this.request("POST", "/face-restore", { body: form });
