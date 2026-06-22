@@ -274,11 +274,16 @@ E-commerce preset: cutout + centered on canvas + optional drop shadow + standard
 | `padding` | `number` | Padding in pixels. Default `48`. |
 | `shadow` | `boolean` | Include drop shadow. Default `true`. |
 | `transparent` | `boolean` | Keep a transparent background. Ignores `bgColor` and `shadow`; output is PNG (jpg is coerced). Default `false`. |
+| `enhance` | `boolean` | Apply a subtle brightness + saturation lift to the subject for ecommerce-ready output. Default `false`. |
+| `enhanceStrength` | `number` | Lift amount, `0.0`–`0.5`. Default `0.15`. Only applies when `enhance` is `true`. |
 | `format` | `"png" \| "webp" \| "jpg"` | Default `"jpg"`. |
 
 ```ts
 // Transparent product cutout, centered & squared
 const cutout = await client.studioShot({ file: "./product.jpg", transparent: true });
+
+// Ecommerce-ready shot with a brightness + saturation boost
+const bright = await client.studioShot({ file: "./product.jpg", aspect: "1:1", enhance: true });
 ```
 
 ### `client.compare(input)`
